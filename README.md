@@ -1,4 +1,4 @@
-# Northeastern Hour Submission Bot
+# Northeastern Timesheet Bot
 
 This bot is a tool that automatically enters a weeks worth of hours into the
 Northeastern University Student Employment form. 
