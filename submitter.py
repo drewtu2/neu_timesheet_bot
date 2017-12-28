@@ -107,11 +107,11 @@ class neu_job_bot():
 
     def run(self, configFile=None):
         entries = generateEntries(configFile)
+        # Give the user a chance to kill the script.
+        print('>>> 5 SECOND PAUSE TO LET USER PRESS CTRL-C <<<')
+        sleep(5)
         for entry in entries:
-            # Give the user a chance to kill the script.
-            print('>>> 5 SECOND PAUSE TO LET USER PRESS CTRL-C <<<')
-            sleep(5)
-            
+            sleep(self.LOAD_DELAY)
             self.add_entry()
             self.set_day(entry["Day"])
             self.set_start(entry["Start"])
