@@ -216,7 +216,7 @@ class neu_job_bot():
         start = datetime.datetime.strptime(start, dtfmt).time()
         time = datetime.datetime.strptime(time, dtfmt).time()
     
-        index_current = TIMES[is_end].index(start)
+        index_current = TIMES[is_end].index(start) + is_end
 
         if new_day:
             # If this is a new day, we need the last time the value occured. 
@@ -226,9 +226,6 @@ class neu_job_bot():
             # Otherwise, this value only occured once. 
             index_goal = TIMES[is_end].index(time)
     
-        print(index_goal)
-        print(index_current)
-        print(index_delta)
         index_delta = index_goal - index_current
     
         if index_delta > 0:
