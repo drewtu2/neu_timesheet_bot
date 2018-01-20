@@ -26,30 +26,37 @@ def generateEntries(config_file):
     Converts a csv file to a list of dicitonaries. The format of the csv is as 
     follows: 
 
-    Monday 9:00AM 9:45AM
-    Tuesday 9:00PM 9:30PM
-    Wednesday 10:00AM 11:00AM
+    Monday 9:00AM Monday 9:45AM
+    Tuesday 9:00PM Tuesday 9:30PM
+    Wednesday 10:00AM Wednesday 11:00AM
     
     Returned list is as follows:
+    entry = {
+        "Start": Day1,
+        "End": Day2
+    }   
     day1 = {
             "Day": "Monday",
-            "Start": "9:00AM",
-            "End":"9:45AM"}
-    day1 = {
-            "Day": "Tuesday",
-            "Start": "9:00PM",
-            "End":"9:30PM"}
+            "Time": "9:00AM"
+    }
     day2 = {
-            "Day": "Wednesday",
-            "Start": "10:00AM",
-            "End":"11:00AM"}
+            "Day": "Tuesday",
+            "Time": "9:00AM"
+    }
     entries = [day1, day2, day3]
     """
+
+    def _make_entry(start, end):
+        return {"Start": start, "End": end}
+
+    def _make_day(day, time):
+        return {"Day": day, "Time": time}
+
     if config_file is None:
         config_file = "myconfig.csv"
 
     logging.info("Generating entries from %s", config_file)
-    fieldNames = ["Day", "Start", "End"]
+    fieldNames = ["DayStart", "TimeStart", "DayEnd", "TimeEnd"]
     entries = []
     directory = "configs/"
     
@@ -61,7 +68,11 @@ def generateEntries(config_file):
             
             configReader = csv.DictReader(myfilter, fieldnames=fieldNames, delimiter=" ")
             for row in configReader:
-                entries.append(dict(row))
+                row_dict = dict(row)
+                entry = _make_entry(
+                        _make_day(row_dict["DayStart"], row_dict["TimeStart"]),
+                        _make_day(row_dict["DayEnd"], row_dict["TimeEnd"]))
+                entries.append(entry)
     except FileNotFoundError as e:
         logging.error(e)
         quit()
@@ -70,19 +81,38 @@ def generateEntries(config_file):
     return entries
 
 def generateTimeList():
+    """
+    Returns a containing two lists of 15 minute interval Times. 
+    """
+    
+    dtfmt = '%Y-%m-%d %I:%M:%S%p'
+
     def perdelta(start, end, delta):
         curr = start
         while curr <= end:
             yield curr
             curr += delta
-    dtfmt = '%I:%M:%S%p'
-    a = '12:00:00AM'
-    b = '11:45:00PM'
-    start = datetime.datetime.strptime(a,dtfmt)
-    end = datetime.datetime.strptime(b,dtfmt)
-    results = [result for result in perdelta(start, end, datetime.timedelta(minutes=15))]
-    return results
 
+    def genDay(start_time, end_time):
+        start = datetime.datetime.strptime(start_time, dtfmt)
+        end = datetime.datetime.strptime(end_time, dtfmt)
+        results = [result for result in perdelta(start, end, datetime.timedelta(minutes=15))]
+        results = [result.time() for result in results]
+        return results
+    
+    start_range_start = '2000-01-01 12:00:00AM'
+    start_range_end = '2000-01-01 11:45:00PM'
+    
+    Start_Times = genDay(start_range_start, start_range_end)
+
+    end_range_start = '2000-01-01 12:15:00AM'
+    end_range_end = '2000-01-02 5:00:00AM'
+
+    End_Times = genDay(end_range_start, end_range_end)
+
+    return (Start_Times, End_Times)
+
+# List of times from [12:00AM - 11:45PM] at 15 minute intervals
 TIMES = generateTimeList()
 
 
@@ -102,7 +132,7 @@ class neu_job_bot():
     IS_END = 1
     
     def __init__(self):
-        self.num_retries = 3
+        self.num_retries = 5
         pass
 
     def run(self, configFile=None):
@@ -113,9 +143,8 @@ class neu_job_bot():
         for entry in entries:
             sleep(self.LOAD_DELAY)
             self.add_entry()
-            self.set_day(entry["Day"])
             self.set_start(entry["Start"])
-            self.set_end(entry["End"])
+            self.set_end(entry)
             self.set_submit()
     
     
@@ -142,24 +171,30 @@ class neu_job_bot():
             logging.error(e)
             self.retry(self.set_day, day, retried)
     
-    def set_start(self, start_time, retried = False):
+    def set_start(self, start, retried = False):
         try:
+            self.set_day(start["Day"])
             logging.debug("Trying \"set_start\"")
             self.click_image(self.START_TIME)
             logging.info("Clicked \"set_start\"")
-            self.set_time(start_time, self.IS_START)
+            self.set_time(start["Time"], self.IS_START)
             logging.info("Set Start Time")
             sleep(self.LOAD_DELAY)
         except ValueError as e:
             logging.error(e)
-            self.retry(self.set_start, start_time, retried)
+            self.retry(self.set_start, start, retried)
     
-    def set_end(self, end_time):
+    def set_end(self, entry):
+        
+        # If the start and end date are not equal, then we've gone into the next
+        # day
+        new_day = entry["Start"]["Day"] != entry["End"]["Day"]
+        end_time = entry["End"]["Time"]
         try:
             logging.debug("Trying \"set_end\"")
             self.click_image(self.END_TIME)
             logging.info("Clicked \"set_end\"")
-            self.set_time(end_time, self.IS_END) 
+            self.set_time(end_time, self.IS_END, new_day) 
             logging.info("Set End Time")
             sleep(self.LOAD_DELAY)
         except ValueError as e:
@@ -174,15 +209,22 @@ class neu_job_bot():
             logging.error(e)
             self.retry(self.set_submit, None, retried)
     
-    def set_time(self, time, is_end):
+    def set_time(self, time, is_end, new_day=False):
         dtfmt = '%I:%M%p'
         start = "8:00AM"
         
-        start = datetime.datetime.strptime(start, dtfmt)
-        time = datetime.datetime.strptime(time, dtfmt)
+        start = datetime.datetime.strptime(start, dtfmt).time()
+        time = datetime.datetime.strptime(time, dtfmt).time()
     
-        index_current = TIMES.index(start) + is_end
-        index_goal = TIMES.index(time)
+        index_current = TIMES[is_end].index(start) + is_end
+
+        if new_day:
+            # If this is a new day, we need the last time the value occured. 
+            indicies = [i for i,val in enumerate(TIMES[is_end]) if val==time]
+            index_goal = indicies[-1]
+        else:
+            # Otherwise, this value only occured once. 
+            index_goal = TIMES[is_end].index(time)
     
         index_delta = index_goal - index_current
     
@@ -192,8 +234,6 @@ class neu_job_bot():
             pyautogui.typewrite(["up" for i in range(index_delta)])
         
         pyautogui.typewrite(["enter"])
-    
-        pass
     
     def click_image(self, png_name):
         """
