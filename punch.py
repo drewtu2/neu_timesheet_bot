@@ -1,10 +1,12 @@
+#!/usr/local/bin/python3
+
 from datetime import datetime, timedelta
 import pickle
 import os
 import sys
 
 save_file = os.environ.get("HOME") + "/Documents/Projects/neu_timesheet_bot/.punch_card.pickle"
-config_file = os.environ.get("HOME") + "/Documents/Projects/neu_timesheet_bot/1-15.csv"
+config_file = os.environ.get("HOME") + "/Documents/Projects/neu_timesheet_bot/1-22.csv"
 
 def punch_in():
     """
@@ -13,7 +15,7 @@ def punch_in():
     """
 
     now = datetime.now()
-   
+    print("Punched in at " + str(now))
     # The file exists.... check to make sure we want to overwrite it
     if os.path.isfile(save_file):
         if confirm_overwrite():
@@ -50,6 +52,10 @@ def punch_out():
     
     Removes the temp save file 
     """
+    if not os.path.isfile(save_file):
+        print("Error: You are not currently punched in")
+        exit(0)
+
     # Round the start time down to the nearest 15 minute mark
     start = pickle.load(open(save_file, 'rb'))
     start = start - timedelta(minutes=start.minute % 15,
@@ -61,8 +67,9 @@ def punch_out():
     end = end - timedelta(seconds=end.second, microseconds= end.microsecond)
     end = end + timedelta(minutes=15 - (end.minute % 15))
     
+    print("Punched out at " + str(end))
+
     os.remove(save_file)
-    print("Removed temp files...")
 
     with open(config_file, 'a+') as f:
         myfmt = "%A %I:%M%p"
@@ -77,13 +84,27 @@ def punch_print():
         for line in f:
             print(line)
 
-def bad_arguments():
-    print("Malformed arguments...")
+def print_time_in():
+    """
+    Prints the time you clocked in 
+    """
+
+    if not os.path.isfile(save_file):
+        print("ERROR: You are not currently punched in...")
+    else:
+        print("Time in: " + str(pickle.load(open(save_file, 'rb'))))
+
+def print_usage():
+    print("Usage:")
+    print("Clock in:\t punch in")
+    print("Clock out:\t punch out")
+    print("Time in:\t punch time_in")
+    print("View Timecard:\t punch print")
     sys.exit(0)
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        bad_arguments()
+        print_usage()
     else:
         if sys.argv[1] == "in":
             punch_in()
@@ -91,8 +112,10 @@ if __name__ == "__main__":
             punch_out()
         elif sys.argv[1] == "print":
             punch_print()
+        elif sys.argv[1] == "time_in":
+            print_time_in()
         else:
-            bad_arguments()
+            print_usage()
 
 
 
