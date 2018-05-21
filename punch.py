@@ -6,7 +6,7 @@ import os
 import sys
 
 save_file = os.environ.get("HOME") + "/Documents/Projects/neu_timesheet_bot/.punch_card.pickle"
-config_file = os.environ.get("HOME") + "/Documents/Projects/neu_timesheet_bot/1-22.csv"
+config_file = os.environ.get("HOME") + "/Documents/Projects/neu_timesheet_bot/2-12.csv"
 
 def punch_in():
     """
